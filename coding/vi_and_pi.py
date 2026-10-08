@@ -16,8 +16,7 @@ def _validate_discount(discount: float) -> None:
 def bellman_backup(mdp, value: np.ndarray, state: int, action: int, discount: float) -> float:
     """Return one state-action Bellman backup Q_V(state, action)."""
     _validate_discount(discount)
-    # TODO: combine the immediate reward and discounted expected next-state value.
-    raise NotImplementedError
+    return float(mdp.R[state, action] + discount * np.dot(mdp.P[state, action], value))
 
 
 def policy_evaluation(
@@ -34,10 +33,15 @@ def policy_evaluation(
         raise ValueError("policy must have shape (mdp.num_states,)")
     value = np.zeros(mdp.num_states, dtype=float)
 
-    # TODO: repeatedly apply the policy Bellman operator. Use a copy (synchronous
-    # updates), stop when max(abs(new_value - value)) <= tolerance, and raise
-    # RuntimeError if max_iterations is reached without convergence.
-    raise NotImplementedError
+    states = np.arange(mdp.num_states)
+    rewards = mdp.R[states, policy]
+    transitions = mdp.P[states, policy]
+    for _ in range(max_iterations):
+        new_value = rewards + discount * (transitions @ value)
+        if np.max(np.abs(new_value - value)) <= tolerance:
+            return new_value
+        value = new_value
+    raise RuntimeError("policy evaluation did not converge within max_iterations")
 
 
 def policy_improvement(mdp, value: np.ndarray, discount: float) -> np.ndarray:
@@ -47,8 +51,8 @@ def policy_improvement(mdp, value: np.ndarray, discount: float) -> np.ndarray:
     if value.shape != (mdp.num_states,):
         raise ValueError("value must have shape (mdp.num_states,)")
 
-    # TODO: compute every action value and use np.argmax for required tie-breaking.
-    raise NotImplementedError
+    action_values = mdp.R + discount * (mdp.P @ value)
+    return np.argmax(action_values, axis=1)
 
 
 def policy_iteration(
@@ -61,9 +65,13 @@ def policy_iteration(
     _validate_discount(discount)
     policy = np.zeros(mdp.num_states, dtype=int)
 
-    # TODO: alternate policy evaluation and improvement until the policy is stable.
-    # Count outer policy-improvement steps against max_iterations.
-    raise NotImplementedError
+    for _ in range(max_iterations):
+        value = policy_evaluation(mdp, policy, discount, tolerance=tolerance)
+        new_policy = policy_improvement(mdp, value, discount)
+        if np.array_equal(new_policy, policy):
+            return value, new_policy
+        policy = new_policy
+    raise RuntimeError("policy iteration did not converge within max_iterations")
 
 
 def value_iteration(
@@ -76,6 +84,10 @@ def value_iteration(
     _validate_discount(discount)
     value = np.zeros(mdp.num_states, dtype=float)
 
-    # TODO: repeatedly apply the optimal Bellman operator with synchronous updates.
-    # After convergence, extract a greedy policy with policy_improvement.
-    raise NotImplementedError
+    for _ in range(max_iterations):
+        action_values = mdp.R + discount * (mdp.P @ value)
+        new_value = np.max(action_values, axis=1)
+        if np.max(np.abs(new_value - value)) <= tolerance:
+            return new_value, policy_improvement(mdp, new_value, discount)
+        value = new_value
+    raise RuntimeError("value iteration did not converge within max_iterations")
